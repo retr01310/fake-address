@@ -801,21 +801,35 @@
             },
 
             parseApiAddress(raw, countryCode) {
-                // API returns strings like "123 Main St, Springfield, IL 62704, US"
-                // Split by comma and try to extract components
-                const parts = raw.split(',').map(p => p.trim());
                 const country = addressData[countryCode];
 
-                if (parts.length >= 3) {
-                    const street = parts[0];
-                    const city = parts[1];
-                    // Last part often has "STATE ZIP, COUNTRY" or just "ZIP COUNTRY"
-                    const rest = parts.slice(2).join(', ');
-                    // Try to extract postal code (digits group)
-                    const postalMatch = rest.match(/(\d[\d\s-]*\d|\d{3,})/);
-                    const postal = postalMatch ? postalMatch[1].trim() : '';
-                    // State is what's left before the postal
-                    const state = rest.replace(postal, '').replace(/,/g, '').trim() || parts[2] || '';
+                // If API returns a structured object (some versions do)
+                if (typeof raw === 'object' && raw !== null) {
+                    return {
+                        country: country.name,
+                        flag: country.flag,
+                        street: raw.address || raw.street || raw.streetAddress || '',
+                        number: '',
+                        city: raw.city || '',
+                        state: raw.state || raw.region || '',
+                        postal: raw.zipCode || raw.zip || raw.postalCode || raw.postcode || '',
+                        source: 'api'
+                    };
+                }
+
+                // API returns strings in Faker/Bogus format:
+                // "Street, SecondaryAddr, City, State, Country, ZipCode"
+                // Parse from the END since last fields are predictable
+                const parts = String(raw).split(',').map(p => p.trim());
+
+                if (parts.length >= 5) {
+                    // Last = zip, second-to-last = country, then state, city
+                    const zip = parts[parts.length - 1];
+                    // parts[length-2] = country name (skip, we already know it)
+                    const state = parts[parts.length - 3];
+                    const city = parts[parts.length - 4];
+                    // Everything before city = street address (may include secondary)
+                    const street = parts.slice(0, parts.length - 4).join(', ');
 
                     return {
                         country: country.name,
@@ -824,16 +838,29 @@
                         number: '',
                         city: city,
                         state: state,
-                        postal: postal,
+                        postal: zip,
                         source: 'api'
                     };
                 }
 
-                // Fallback: show raw address as street
+                if (parts.length === 4) {
+                    return {
+                        country: country.name,
+                        flag: country.flag,
+                        street: parts[0],
+                        number: '',
+                        city: parts[1],
+                        state: parts[2],
+                        postal: parts[3],
+                        source: 'api'
+                    };
+                }
+
+                // Minimal fallback: show raw as street
                 return {
                     country: country.name,
                     flag: country.flag,
-                    street: raw,
+                    street: String(raw),
                     number: '',
                     city: '',
                     state: '',
@@ -870,7 +897,7 @@
                     this.updateStatusUI();
 
                     if (Array.isArray(addresses) && addresses.length > 0) {
-                        return addresses.map(raw => this.parseApiAddress(String(raw), countryCode));
+                        return addresses.map(raw => this.parseApiAddress(raw, countryCode));
                     }
                     return null;
                 } catch (err) {
