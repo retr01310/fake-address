@@ -507,6 +507,138 @@
             }
         }
 
+        /* API Config Panel */
+        .api-config {
+            margin-bottom: 2rem;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+        }
+
+        .api-toggle {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--earth);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: none;
+            background: none;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .api-toggle:hover {
+            color: var(--terracotta);
+        }
+
+        .api-toggle::before {
+            display: none;
+        }
+
+        .api-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), padding 0.4s;
+            background: var(--sand);
+            border: 2px solid transparent;
+        }
+
+        .api-panel.open {
+            max-height: 200px;
+            padding: 1.25rem;
+            border-color: var(--clay);
+        }
+
+        .api-panel-inner {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .api-panel input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--earth);
+            background: var(--paper);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--ink);
+        }
+
+        .api-panel input[type="text"]::placeholder {
+            color: var(--clay);
+        }
+
+        .api-panel input[type="text"]:focus {
+            outline: none;
+            border-color: var(--terracotta);
+        }
+
+        .api-save-btn {
+            padding: 0.75rem 1.25rem;
+            font-size: 0.75rem;
+        }
+
+        .api-status {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--earth);
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.api {
+            background: #4CAF50;
+            box-shadow: 0 0 6px #4CAF50;
+        }
+
+        .status-dot.local {
+            background: var(--terracotta);
+            box-shadow: 0 0 6px var(--terracotta);
+        }
+
+        .status-dot.error {
+            background: #e74c3c;
+            box-shadow: 0 0 6px #e74c3c;
+        }
+
+        /* Name field in cards */
+        .name-source-tag {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.6rem;
+            padding: 0.2rem 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: inline-block;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .name-source-tag.api {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .name-source-tag.local {
+            background: var(--clay);
+            color: var(--paper);
+        }
+
         .decorative-corner {
             position: fixed;
             width: 300px;
@@ -558,6 +690,22 @@
             <p class="subtitle">Direcciones aleatorias realistas de todo el mundo</p>
         </header>
 
+        <div class="api-config">
+            <button class="api-toggle" onclick="toggleApiPanel()">
+                <span id="apiToggleArrow">&#9654;</span> Configurar API de nombres (Randommer.io)
+            </button>
+            <div class="api-panel" id="apiPanel">
+                <div class="api-panel-inner">
+                    <input type="text" id="apiKeyInput" placeholder="Tu API Key de randommer.io (opcional)">
+                    <button class="api-save-btn" onclick="saveApiKey()"><span>Guardar</span></button>
+                </div>
+                <div class="api-status" id="apiStatus">
+                    <span class="status-dot local"></span>
+                    <span>Modo local — Los nombres se generan proceduralmente</span>
+                </div>
+            </div>
+        </div>
+
         <div class="controls">
             <div class="custom-select" id="countrySelect">
                 <div class="select-trigger">
@@ -593,6 +741,190 @@
     </div>
 
     <script>
+        // ============================================
+        // HYBRID NAME GENERATION SERVICE
+        // Primary: Randommer.io API
+        // Fallback: Procedural generation
+        // ============================================
+
+        const NameService = {
+            apiKey: localStorage.getItem('randommer_api_key') || '',
+            nameCache: [],
+            dailyCount: parseInt(localStorage.getItem('randommer_daily_count') || '0'),
+            dailyDate: localStorage.getItem('randommer_daily_date') || '',
+            lastSource: 'local',
+            DAILY_LIMIT: 950, // Stay under 1000 to be safe
+
+            // Procedural name database by region
+            proceduralNames: {
+                'América': {
+                    first: ['Carlos', 'María', 'José', 'Ana', 'Luis', 'Laura', 'Miguel', 'Carmen', 'Diego', 'Sofía', 'Andrés', 'Valentina', 'Fernando', 'Gabriela', 'Ricardo', 'Isabella', 'Alejandro', 'Daniela', 'Roberto', 'Camila', 'Jorge', 'Lucía', 'Francisco', 'Mariana', 'Eduardo', 'Natalia', 'Santiago', 'Paula', 'Emilio', 'Catalina'],
+                    last: ['García', 'Rodríguez', 'Martínez', 'López', 'González', 'Hernández', 'Pérez', 'Sánchez', 'Ramírez', 'Torres', 'Flores', 'Rivera', 'Morales', 'Reyes', 'Cruz', 'Ruiz', 'Vargas', 'Castillo', 'Medina', 'Romero']
+                },
+                'América_en': {
+                    first: ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth', 'David', 'Barbara', 'Richard', 'Susan', 'Thomas', 'Jessica', 'Daniel', 'Sarah', 'Matthew', 'Karen', 'Andrew', 'Emily', 'Christopher', 'Amanda', 'Brian', 'Melissa', 'Kevin', 'Stephanie', 'Jason', 'Nicole'],
+                    last: ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Wilson', 'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White']
+                },
+                'América_br': {
+                    first: ['João', 'Maria', 'Pedro', 'Ana', 'Lucas', 'Juliana', 'Gabriel', 'Fernanda', 'Rafael', 'Beatriz', 'Matheus', 'Larissa', 'Gustavo', 'Camila', 'Felipe', 'Letícia', 'Bruno', 'Amanda', 'Thiago', 'Carolina'],
+                    last: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Rodrigues', 'Ferreira', 'Alves', 'Pereira', 'Lima', 'Gomes', 'Costa', 'Ribeiro', 'Martins', 'Carvalho', 'Araújo', 'Melo', 'Barbosa', 'Nascimento', 'Moreira', 'Nunes']
+                },
+                'Europa': {
+                    first: ['Hans', 'Sophie', 'Pierre', 'Marie', 'Giovanni', 'Chiara', 'Erik', 'Ingrid', 'Dimitri', 'Elena', 'Klaus', 'Helga', 'Jean', 'Isabelle', 'Marco', 'Francesca', 'Stefan', 'Anna', 'Willem', 'Katrina', 'Oliver', 'Emma', 'Luca', 'Marta', 'Felix', 'Nora', 'Anton', 'Clara', 'Max', 'Lea'],
+                    last: ['Müller', 'Schmidt', 'Dupont', 'Martin', 'Rossi', 'Bianchi', 'Johansson', 'Andersson', 'Petrov', 'Ivanov', 'Weber', 'Fischer', 'Bernard', 'Dubois', 'Romano', 'Ferrari', 'Nielsen', 'Larsen', 'De Vries', 'Bakker']
+                },
+                'Europa_es': {
+                    first: ['Pablo', 'Lucía', 'Hugo', 'Martina', 'Álvaro', 'Sofía', 'Daniel', 'Valeria', 'Adrián', 'Carmen', 'Sergio', 'Irene', 'David', 'Sara', 'Marcos', 'Claudia', 'Mario', 'Elena', 'Iker', 'Nerea'],
+                    last: ['García', 'Fernández', 'González', 'Rodríguez', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Martín', 'Ruiz', 'Díaz', 'Hernández', 'Álvarez', 'Moreno', 'Muñoz', 'Alonso', 'Jiménez', 'Romero', 'Navarro']
+                },
+                'Europa_fr': {
+                    first: ['Lucas', 'Emma', 'Louis', 'Jade', 'Gabriel', 'Louise', 'Raphaël', 'Alice', 'Arthur', 'Chloé', 'Jules', 'Léa', 'Hugo', 'Manon', 'Adam', 'Inès', 'Léo', 'Camille', 'Nathan', 'Sarah'],
+                    last: ['Martin', 'Bernard', 'Dubois', 'Thomas', 'Robert', 'Richard', 'Petit', 'Durand', 'Leroy', 'Moreau', 'Simon', 'Laurent', 'Lefebvre', 'Michel', 'Garcia', 'David', 'Bertrand', 'Roux', 'Vincent', 'Fournier']
+                },
+                'Europa_it': {
+                    first: ['Francesco', 'Giulia', 'Alessandro', 'Chiara', 'Lorenzo', 'Sara', 'Andrea', 'Francesca', 'Matteo', 'Anna', 'Luca', 'Valentina', 'Marco', 'Elisa', 'Davide', 'Martina', 'Federico', 'Alessia', 'Simone', 'Elena'],
+                    last: ['Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo', 'Ricci', 'Marino', 'Greco', 'Bruno', 'Gallo', 'Conti', 'De Luca', 'Mancini', 'Costa', 'Giordano', 'Rizzo', 'Lombardi', 'Moretti']
+                },
+                'Europa_de': {
+                    first: ['Ben', 'Mia', 'Paul', 'Emma', 'Leon', 'Hannah', 'Finn', 'Sophia', 'Lukas', 'Anna', 'Jonas', 'Lena', 'Felix', 'Marie', 'Noah', 'Clara', 'Elias', 'Lea', 'Luis', 'Emilia'],
+                    last: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann', 'Koch', 'Richter', 'Wolf', 'Schröder', 'Neumann', 'Schwarz', 'Braun', 'Zimmermann', 'Krüger', 'Hartmann']
+                },
+                'Europa_pt': {
+                    first: ['Tiago', 'Maria', 'Diogo', 'Ana', 'Gonçalo', 'Inês', 'Rodrigo', 'Beatriz', 'Francisco', 'Leonor', 'Tomás', 'Mariana', 'Miguel', 'Carolina', 'Afonso', 'Matilde', 'Pedro', 'Sofia', 'Bernardo', 'Madalena'],
+                    last: ['Silva', 'Santos', 'Ferreira', 'Pereira', 'Oliveira', 'Costa', 'Rodrigues', 'Martins', 'Sousa', 'Fernandes', 'Gonçalves', 'Gomes', 'Lopes', 'Marques', 'Alves', 'Almeida', 'Ribeiro', 'Pinto', 'Carvalho', 'Teixeira']
+                },
+                'Europa_uk': {
+                    first: ['Oliver', 'Olivia', 'George', 'Amelia', 'Harry', 'Isla', 'Noah', 'Ava', 'Jack', 'Emily', 'Leo', 'Mia', 'Oscar', 'Grace', 'Charlie', 'Sophia', 'Arthur', 'Lily', 'Henry', 'Ella'],
+                    last: ['Smith', 'Jones', 'Williams', 'Taylor', 'Brown', 'Davies', 'Evans', 'Wilson', 'Thomas', 'Roberts', 'Johnson', 'Lewis', 'Walker', 'Robinson', 'Wood', 'Thompson', 'White', 'Watson', 'Jackson', 'Wright']
+                },
+                'Asia-Oceanía': {
+                    first: ['Yuki', 'Hana', 'Wei', 'Mei', 'Jin', 'Sakura', 'Ryu', 'Aiko', 'Chen', 'Ling', 'Raj', 'Priya', 'Arjun', 'Sari', 'Kenji', 'Yuna', 'Hiroshi', 'Suki', 'Min', 'Lotus', 'Akira', 'Nari', 'Takeshi', 'Aya', 'Vikram', 'Ananya', 'Daisuke', 'Noor', 'Haruki', 'Kaede'],
+                    last: ['Tanaka', 'Wang', 'Kim', 'Suzuki', 'Singh', 'Patel', 'Nguyen', 'Yamamoto', 'Li', 'Zhang', 'Sato', 'Chen', 'Park', 'Watanabe', 'Kumar', 'Shah', 'Tran', 'Takahashi', 'Lee', 'Nakamura']
+                },
+                'Asia-Oceanía_au': {
+                    first: ['Jack', 'Charlotte', 'Oliver', 'Olivia', 'William', 'Amelia', 'Noah', 'Mia', 'James', 'Ava', 'Thomas', 'Grace', 'Ethan', 'Lily', 'Lucas', 'Chloe', 'Henry', 'Sophie', 'Liam', 'Emma'],
+                    last: ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Anderson', 'Thompson', 'Nguyen', 'Thomas', 'Walker', 'Harris', 'Lee', 'Ryan', 'Robinson', 'Kelly', 'King']
+                },
+                'Asia-Oceanía_nz': {
+                    first: ['Liam', 'Charlotte', 'Oliver', 'Isla', 'Jack', 'Amelia', 'Noah', 'Olivia', 'James', 'Ava', 'William', 'Sophie', 'Lucas', 'Emily', 'Mason', 'Mia', 'Ethan', 'Ella', 'Leo', 'Harper'],
+                    last: ['Smith', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Anderson', 'Thomas', 'Harris', 'Jones', 'Martin', 'Singh', 'Thompson', 'Walker', 'White', 'King', 'Lee', 'Baker', 'Clark', 'Robinson', 'Campbell']
+                },
+                'África-Medio Oriente': {
+                    first: ['Ahmed', 'Fatima', 'Omar', 'Amina', 'Youssef', 'Layla', 'Hassan', 'Mariam', 'Ibrahim', 'Aisha', 'Ali', 'Zara', 'Mohamed', 'Nadia', 'Khalil', 'Samira', 'Tariq', 'Yasmin', 'Said', 'Halima', 'Malik', 'Safiya', 'Idris', 'Khadija', 'Rashid', 'Leila', 'Hamza', 'Soraya', 'Karim', 'Farah'],
+                    last: ['Hassan', 'Ali', 'Ahmed', 'Mohamed', 'Ibrahim', 'Osman', 'Diallo', 'Mbeki', 'Nkosi', 'Abadi', 'Said', 'Saleh', 'Youssef', 'Khalil', 'Rahman', 'Mensah', 'Okafor', 'Adeyemi', 'Kamara', 'Toure']
+                }
+            },
+
+            // Map country codes to specific name pools
+            countryNameMap: {
+                us: 'América_en', ca: 'América_en', pr: 'América_en',
+                br: 'América_br',
+                es: 'Europa_es',
+                fr: 'Europa_fr',
+                it: 'Europa_it',
+                de: 'Europa_de', at: 'Europa_de', ch: 'Europa_de',
+                pt: 'Europa_pt',
+                uk: 'Europa_uk', ie: 'Europa_uk',
+                au: 'Asia-Oceanía_au',
+                nz: 'Asia-Oceanía_nz'
+            },
+
+            init() {
+                const today = new Date().toISOString().slice(0, 10);
+                if (this.dailyDate !== today) {
+                    this.dailyCount = 0;
+                    this.dailyDate = today;
+                    localStorage.setItem('randommer_daily_count', '0');
+                    localStorage.setItem('randommer_daily_date', today);
+                }
+                if (this.apiKey) {
+                    document.getElementById('apiKeyInput').value = this.apiKey;
+                }
+                this.updateStatusUI();
+            },
+
+            updateStatusUI() {
+                const statusEl = document.getElementById('apiStatus');
+                if (!this.apiKey) {
+                    statusEl.innerHTML = '<span class="status-dot local"></span><span>Modo local — Los nombres se generan proceduralmente</span>';
+                } else if (this.dailyCount >= this.DAILY_LIMIT) {
+                    statusEl.innerHTML = '<span class="status-dot error"></span><span>Límite diario alcanzado — Usando fallback local (' + this.dailyCount + '/1000)</span>';
+                } else {
+                    statusEl.innerHTML = '<span class="status-dot api"></span><span>API activa — Randommer.io (' + this.dailyCount + '/1000 solicitudes hoy)</span>';
+                }
+            },
+
+            getNamePool(countryCode) {
+                const country = addressData[countryCode];
+                const specificPool = this.countryNameMap[countryCode];
+                if (specificPool && this.proceduralNames[specificPool]) {
+                    return this.proceduralNames[specificPool];
+                }
+                return this.proceduralNames[country.region] || this.proceduralNames['América'];
+            },
+
+            generateProceduralName(countryCode) {
+                const pool = this.getNamePool(countryCode);
+                const first = pool.first[Math.floor(Math.random() * pool.first.length)];
+                const last = pool.last[Math.floor(Math.random() * pool.last.length)];
+                return { fullName: first + ' ' + last, source: 'local' };
+            },
+
+            async fetchNamesFromAPI(quantity) {
+                if (!this.apiKey || this.dailyCount >= this.DAILY_LIMIT) {
+                    return null;
+                }
+
+                try {
+                    const response = await fetch(
+                        'https://randommer.io/api/Name?nameType=fullname&quantity=' + quantity,
+                        {
+                            headers: {
+                                'X-Api-Key': this.apiKey
+                            }
+                        }
+                    );
+
+                    if (response.status === 429) {
+                        this.dailyCount = this.DAILY_LIMIT;
+                        localStorage.setItem('randommer_daily_count', String(this.dailyCount));
+                        this.updateStatusUI();
+                        return null;
+                    }
+
+                    if (!response.ok) {
+                        return null;
+                    }
+
+                    const names = await response.json();
+                    this.dailyCount += 1;
+                    localStorage.setItem('randommer_daily_count', String(this.dailyCount));
+                    this.updateStatusUI();
+                    return names;
+                } catch (err) {
+                    console.warn('Randommer API error, using fallback:', err.message);
+                    return null;
+                }
+            },
+
+            async getNames(countryCode, quantity) {
+                // Try API first
+                const apiNames = await this.fetchNamesFromAPI(quantity);
+                if (apiNames && apiNames.length > 0) {
+                    this.lastSource = 'api';
+                    return apiNames.map(name => ({ fullName: name, source: 'api' }));
+                }
+
+                // Fallback to procedural
+                this.lastSource = 'local';
+                const names = [];
+                for (let i = 0; i < quantity; i++) {
+                    names.push(this.generateProceduralName(countryCode));
+                }
+                return names;
+            }
+        };
+
         // Massive address database
         const addressData = {
             // AMÉRICA
@@ -686,17 +1018,19 @@
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        function generateAddress(countryCode) {
+        function generateAddress(countryCode, nameData) {
             const country = addressData[countryCode];
             const cityIndex = Math.floor(Math.random() * country.cities.length);
-            
-            const postalCode = typeof country.postalPrefix[cityIndex] === 'string' 
+
+            const postalCode = typeof country.postalPrefix[cityIndex] === 'string'
                 ? country.postalPrefix[cityIndex] + randomNumber(100, 999).toString().substring(0, 3)
                 : country.postalPrefix[cityIndex].toString().padStart(5, '0') + randomNumber(1, 99).toString().padStart(2, '0');
-            
+
             return {
                 country: country.name,
                 flag: country.flag,
+                name: nameData.fullName,
+                nameSource: nameData.source,
                 street: random(country.streets),
                 number: randomNumber(1, 9999),
                 city: country.cities[cityIndex],
@@ -710,9 +1044,18 @@
             card.className = 'address-card';
             card.style.animationDelay = `${index * 0.1}s`;
             
+            const sourceTag = address.nameSource === 'api'
+                ? '<span class="name-source-tag api">API</span>'
+                : '<span class="name-source-tag local">LOCAL</span>';
+
             card.innerHTML = `
                 <div class="country-tag">${address.flag} ${address.country}</div>
-                
+
+                <div class="address-field">
+                    <div class="label">Nombre ${sourceTag}</div>
+                    <div class="value">${address.name}</div>
+                </div>
+
                 <div class="address-field">
                     <div class="label">Calle</div>
                     <div class="value">${address.street} ${address.number}</div>
@@ -820,15 +1163,19 @@
             }
         });
 
-        // Address generation
-        function generateAddresses() {
-            const count = parseInt(document.getElementById('count').value) || 3;
+        // Address generation (async for API calls)
+        async function generateAddresses() {
+            const count = Math.min(parseInt(document.getElementById('count').value) || 3, 10);
             const grid = document.getElementById('addressGrid');
-            
+
+            grid.innerHTML = '<div style="font-family: Space Mono, monospace; font-size: 0.85rem; color: var(--earth); padding: 2rem;">Generando...</div>';
+
+            const names = await NameService.getNames(selectedCountry, count);
+
             grid.innerHTML = '';
-            
-            for (let i = 0; i < Math.min(count, 10); i++) {
-                const address = generateAddress(selectedCountry);
+
+            for (let i = 0; i < count; i++) {
+                const address = generateAddress(selectedCountry, names[i]);
                 const card = createAddressCard(address, i);
                 grid.appendChild(card);
             }
@@ -875,6 +1222,35 @@
 
         document.getElementById('generate').addEventListener('click', generateAddresses);
         document.getElementById('copyAll').addEventListener('click', copyAllAddresses);
+
+        // API Panel functions
+        function toggleApiPanel() {
+            const panel = document.getElementById('apiPanel');
+            const arrow = document.getElementById('apiToggleArrow');
+            panel.classList.toggle('open');
+            arrow.textContent = panel.classList.contains('open') ? '▼' : '▶';
+        }
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            const key = input.value.trim();
+            NameService.apiKey = key;
+            if (key) {
+                localStorage.setItem('randommer_api_key', key);
+            } else {
+                localStorage.removeItem('randommer_api_key');
+            }
+            NameService.updateStatusUI();
+
+            // Visual feedback
+            const btn = event.target.closest('button');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<span>Guardado</span>';
+            setTimeout(() => { btn.innerHTML = original; }, 1500);
+        }
+
+        // Initialize
+        NameService.init();
 
         // Set initial selected country
         selectedLabel.textContent = addressData[selectedCountry].name;
