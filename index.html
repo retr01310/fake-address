@@ -800,10 +800,41 @@
                 }
             },
 
+            // Known country names the API might return (for detection)
+            countryNames: new Set([
+                'United States', 'USA', 'US', 'Mexico', 'México', 'Canada', 'Canadá',
+                'Argentina', 'Brasil', 'Brazil', 'Chile', 'Colombia', 'Costa Rica',
+                'Ecuador', 'Guatemala', 'Honduras', 'Panamá', 'Panama', 'Perú', 'Peru',
+                'Puerto Rico', 'República Dominicana', 'Dominican Republic',
+                'Uruguay', 'Venezuela',
+                'Germany', 'Deutschland', 'Alemania', 'France', 'Francia',
+                'Italy', 'Italia', 'Spain', 'España', 'United Kingdom', 'UK',
+                'Great Britain', 'Portugal', 'Netherlands', 'Nederland',
+                'Belgium', 'Belgique', 'België', 'Austria', 'Österreich',
+                'Switzerland', 'Schweiz', 'Suisse', 'Svizzera',
+                'Sweden', 'Sverige', 'Norway', 'Norge', 'Denmark', 'Danmark',
+                'Finland', 'Suomi', 'Poland', 'Polska', 'Czech Republic', 'Česko',
+                'Slovakia', 'Slovensko', 'Slovenia', 'Slovenija',
+                'Hungary', 'Magyarország', 'Romania', 'România',
+                'Bulgaria', 'България', 'Greece', 'Ελλάδα', 'Ellada',
+                'Ireland', 'Éire', 'Iceland', 'Ísland',
+                'Estonia', 'Eesti', 'Latvia', 'Latvija', 'Lithuania', 'Lietuva',
+                'Luxembourg', 'Luxemburg', 'Ukraine', 'Україна',
+                'Australia', 'New Zealand', 'Japan', '日本', 'South Korea', '한국',
+                'China', '中国', 'Taiwan', '台灣', 'Hong Kong', '香港',
+                'India', 'Indonesia', 'Malaysia', 'Philippines', 'Singapore',
+                'Thailand', 'ประเทศไทย', 'Vietnam', 'Việt Nam', 'Cambodia',
+                'Kazakhstan', 'Қазақстан', 'Pakistan',
+                'United Arab Emirates', 'UAE',
+                'Egypt', 'مصر', 'Algeria', 'الجزائر', 'Morocco', 'المغرب',
+                'Tunisia', 'تونس', 'Nigeria', 'Ghana', 'Kenya', 'South Africa',
+                'Angola', 'Israel', 'ישראל', 'Turkey', 'Türkiye', 'Turkiye'
+            ]),
+
             parseApiAddress(raw, countryCode) {
                 const country = addressData[countryCode];
 
-                // If API returns a structured object (some versions do)
+                // If API returns a structured object
                 if (typeof raw === 'object' && raw !== null) {
                     return {
                         country: country.name,
@@ -817,54 +848,79 @@
                     };
                 }
 
-                // API returns strings in Faker/Bogus format:
-                // "Street, SecondaryAddr, City, State, Country, ZipCode"
-                // Parse from the END since last fields are predictable
+                // API returns comma-separated strings. Format varies by culture:
+                // Could be: "Street, Secondary, City, State, Country, Zip"
+                // Or:       "Street, Secondary, City, Country, Zip"
+                // Or:       "Street, City, State, Country, Zip"
+                // Strategy: identify parts from the end using pattern detection
                 const parts = String(raw).split(',').map(p => p.trim());
 
-                if (parts.length >= 5) {
-                    // Last = zip, second-to-last = country, then state, city
-                    const zip = parts[parts.length - 1];
-                    // parts[length-2] = country name (skip, we already know it)
-                    const state = parts[parts.length - 3];
-                    const city = parts[parts.length - 4];
-                    // Everything before city = street address (may include secondary)
-                    const street = parts.slice(0, parts.length - 4).join(', ');
+                let zip = '';
+                let state = '';
+                let city = '';
+                let street = '';
+                let countryIdx = -1;
+                let zipIdx = -1;
 
-                    return {
-                        country: country.name,
-                        flag: country.flag,
-                        street: street,
-                        number: '',
-                        city: city,
-                        state: state,
-                        postal: zip,
-                        source: 'api'
-                    };
+                // Find the country name part (scan from end)
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    if (this.countryNames.has(parts[i])) {
+                        countryIdx = i;
+                        break;
+                    }
                 }
 
-                if (parts.length === 4) {
-                    return {
-                        country: country.name,
-                        flag: country.flag,
-                        street: parts[0],
-                        number: '',
-                        city: parts[1],
-                        state: parts[2],
-                        postal: parts[3],
-                        source: 'api'
-                    };
+                // Find zip code (digits, possibly with dash/space)
+                // Scan from end, skip country if found
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    if (i === countryIdx) continue;
+                    if (/\d{3,}/.test(parts[i]) && !/\d+\s+\w+\s+\w+/.test(parts[i])) {
+                        // Looks like a zip/postal code (has 3+ digits, not a street address)
+                        zipIdx = i;
+                        zip = parts[i];
+                        break;
+                    }
                 }
 
-                // Minimal fallback: show raw as street
+                // Now identify city and state from remaining parts
+                // Parts order: [street parts...] [city] [state?] [country?] [zip?]
+                // Remove known indices and what's left between street and the identifiers
+                const usedIndices = new Set();
+                if (countryIdx >= 0) usedIndices.add(countryIdx);
+                if (zipIdx >= 0) usedIndices.add(zipIdx);
+
+                // Remaining parts between street and the used indices
+                const firstUsed = Math.min(
+                    countryIdx >= 0 ? countryIdx : parts.length,
+                    zipIdx >= 0 ? zipIdx : parts.length
+                );
+
+                // Parts before the first identified field are: street + maybe city + maybe state
+                const addressParts = [];
+                for (let i = 0; i < parts.length; i++) {
+                    if (!usedIndices.has(i)) addressParts.push({ idx: i, val: parts[i] });
+                }
+
+                if (addressParts.length >= 3) {
+                    // Last unused = state, second-to-last unused = city, rest = street
+                    state = addressParts[addressParts.length - 1].val;
+                    city = addressParts[addressParts.length - 2].val;
+                    street = addressParts.slice(0, addressParts.length - 2).map(p => p.val).join(', ');
+                } else if (addressParts.length === 2) {
+                    city = addressParts[addressParts.length - 1].val;
+                    street = addressParts[0].val;
+                } else if (addressParts.length === 1) {
+                    street = addressParts[0].val;
+                }
+
                 return {
                     country: country.name,
                     flag: country.flag,
-                    street: String(raw),
+                    street: street,
                     number: '',
-                    city: '',
-                    state: '',
-                    postal: '',
+                    city: city,
+                    state: state,
+                    postal: zip,
                     source: 'api'
                 };
             },
