@@ -932,40 +932,34 @@
 
                 const culture = this.cultureMap[countryCode] || 'en';
 
-                // Try with specific culture first, then fallback to 'en'
-                const culturesToTry = [culture];
-                if (culture !== 'en') culturesToTry.push('en');
+                try {
+                    const response = await fetch(
+                        'https://randommer.io/api/Misc/Random-Address?number=' + quantity + '&culture=' + culture,
+                        { headers: { 'X-Api-Key': this.apiKey } }
+                    );
 
-                for (const c of culturesToTry) {
-                    try {
-                        const response = await fetch(
-                            'https://randommer.io/api/Misc/Random-Address?number=' + quantity + '&culture=' + c,
-                            { headers: { 'X-Api-Key': this.apiKey } }
-                        );
-
-                        if (response.status === 429) {
-                            this.dailyCount = this.DAILY_LIMIT;
-                            localStorage.setItem('randommer_daily_count', String(this.dailyCount));
-                            this.updateStatusUI();
-                            return null;
-                        }
-
-                        if (!response.ok) continue; // Try next culture
-
-                        const addresses = await response.json();
-                        this.dailyCount += 1;
+                    if (response.status === 429) {
+                        this.dailyCount = this.DAILY_LIMIT;
                         localStorage.setItem('randommer_daily_count', String(this.dailyCount));
                         this.updateStatusUI();
-
-                        if (Array.isArray(addresses) && addresses.length > 0) {
-                            return addresses.map(raw => this.parseApiAddress(raw, countryCode));
-                        }
-                    } catch (err) {
-                        console.warn('Randommer API error with culture ' + c + ':', err.message);
-                        continue; // Try next culture
+                        return null;
                     }
+
+                    if (!response.ok) return null;
+
+                    const addresses = await response.json();
+                    this.dailyCount += 1;
+                    localStorage.setItem('randommer_daily_count', String(this.dailyCount));
+                    this.updateStatusUI();
+
+                    if (Array.isArray(addresses) && addresses.length > 0) {
+                        return addresses.map(raw => this.parseApiAddress(raw, countryCode));
+                    }
+                    return null;
+                } catch (err) {
+                    console.warn('Randommer API error for ' + culture + ':', err.message);
+                    return null;
                 }
-                return null;
             },
 
             generateProcedural(countryCode) {
