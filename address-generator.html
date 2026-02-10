@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Address Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --clay: #D4A574;
+            --terracotta: #C86B3C;
+            --earth: #8B5A3C;
+            --sand: #F4E8D8;
+            --ink: #2A2A2A;
+            --paper: #FFFEF9;
+            --accent: #E8997A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Crimson Pro', serif;
+            background: linear-gradient(135deg, var(--paper) 0%, var(--sand) 100%);
+            color: var(--ink);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px),
+                repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        header {
+            margin-bottom: 4rem;
+            position: relative;
+        }
+
+        h1 {
+            font-family: 'Space Mono', monospace;
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 700;
+            color: var(--earth);
+            line-height: 0.95;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--terracotta);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+        }
+
+        /* Custom Select Styles */
+        .custom-select {
+            position: relative;
+            min-width: 300px;
+            flex: 1;
+            max-width: 450px;
+        }
+
+        .select-trigger {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            padding: 1rem 1.5rem;
+            border: 2px solid var(--earth);
+            background: var(--paper);
+            color: var(--ink);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .select-trigger::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: var(--sand);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s, height 0.4s;
+        }
+
+        .select-trigger:hover::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        .select-trigger-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .selected-flag {
+            font-size: 1.3rem;
+        }
+
+        .select-trigger:hover {
+            border-color: var(--terracotta);
+            transform: translateY(-2px);
+        }
+
+        .select-trigger.active {
+            border-color: var(--terracotta);
+            background: var(--sand);
+        }
+
+        .select-arrow {
+            font-size: 0.7rem;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .select-trigger.active .select-arrow {
+            transform: rotate(180deg);
+        }
+
+        .select-dropdown {
+            position: absolute;
+            top: calc(100% + 0.5rem);
+            left: 0;
+            right: 0;
+            background: var(--paper);
+            border: 2px solid var(--earth);
+            max-height: 450px;
+            overflow-y: auto;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 12px 12px 0 var(--clay);
+        }
+
+        .select-dropdown.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .select-search {
+            position: sticky;
+            top: 0;
+            background: var(--sand);
+            padding: 1rem;
+            border-bottom: 2px solid var(--clay);
+            z-index: 10;
+        }
+
+        .select-search input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--earth);
+            background: var(--paper);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--ink);
+        }
+
+        .select-search input::placeholder {
+            color: var(--clay);
+        }
+
+        .select-search input:focus {
+            outline: none;
+            border-color: var(--terracotta);
+        }
+
+        .select-options {
+            padding: 0.5rem;
+        }
+
+        .select-option {
+            padding: 0.875rem 1rem;
+            cursor: pointer;
+            font-family: 'Crimson Pro', serif;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .select-option:hover {
+            background: var(--sand);
+            border-left-color: var(--terracotta);
+            padding-left: 1.25rem;
+        }
+
+        .select-option.selected {
+            background: var(--earth);
+            color: var(--paper);
+            font-weight: 600;
+        }
+
+        .option-flag {
+            font-size: 1.4rem;
+            min-width: 2rem;
+            text-align: center;
+        }
+
+        .option-content {
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .option-label {
+            flex: 1;
+        }
+
+        .option-region {
+            font-size: 0.7rem;
+            color: var(--earth);
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--sand);
+            padding: 0.25rem 0.5rem;
+        }
+
+        .select-option.selected .option-region {
+            background: var(--clay);
+            color: var(--paper);
+        }
+
+        .no-results {
+            padding: 2rem;
+            text-align: center;
+            color: var(--earth);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        button {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            padding: 1rem 1.5rem;
+            border: 2px solid var(--earth);
+            background: var(--paper);
+            color: var(--ink);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button.primary {
+            background: var(--earth);
+            color: var(--paper);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: var(--terracotta);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        button span {
+            position: relative;
+            z-index: 1;
+        }
+
+        button:hover {
+            border-color: var(--terracotta);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+        }
+
+        .address-card {
+            background: var(--paper);
+            border: 2px solid var(--clay);
+            padding: 2rem;
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: cardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes cardIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .address-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 12px 12px 0 var(--clay);
+            border-color: var(--terracotta);
+        }
+
+        .address-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(135deg, var(--clay), var(--accent));
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .address-card:hover::before {
+            opacity: 0.1;
+        }
+
+        .country-tag {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--paper);
+            background: var(--terracotta);
+            padding: 0.4rem 0.8rem;
+            display: inline-block;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .address-field {
+            margin-bottom: 1rem;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        .address-field::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .label {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--earth);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .value {
+            font-size: 1.1rem;
+            color: var(--ink);
+            line-height: 1.4;
+        }
+
+        .copy-btn {
+            margin-top: 1.5rem;
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            background: transparent;
+            color: var(--earth);
+            border: 2px solid var(--clay);
+        }
+
+        .copy-btn:hover {
+            background: var(--clay);
+            color: var(--paper);
+        }
+
+        .copied {
+            animation: pulse 0.4s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .count-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .count-control input {
+            width: 80px;
+            padding: 1rem;
+            border: 2px solid var(--earth);
+            background: var(--paper);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 2rem 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .custom-select {
+                max-width: 100%;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+
+        .decorative-corner {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border: 2px solid var(--clay);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .corner-tl {
+            top: -150px;
+            left: -150px;
+            transform: rotate(45deg);
+        }
+
+        .corner-br {
+            bottom: -150px;
+            right: -150px;
+            transform: rotate(45deg);
+        }
+
+        /* Scrollbar styling */
+        .select-dropdown::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .select-dropdown::-webkit-scrollbar-track {
+            background: var(--sand);
+        }
+
+        .select-dropdown::-webkit-scrollbar-thumb {
+            background: var(--clay);
+            border: 2px solid var(--sand);
+        }
+
+        .select-dropdown::-webkit-scrollbar-thumb:hover {
+            background: var(--terracotta);
+        }
+    </style>
+</head>
+<body>
+    <div class="decorative-corner corner-tl"></div>
+    <div class="decorative-corner corner-br"></div>
+
+    <div class="container">
+        <header>
+            <h1>Global<br>Address<br>Generator</h1>
+            <p class="subtitle">Direcciones aleatorias realistas de todo el mundo</p>
+        </header>
+
+        <div class="controls">
+            <div class="custom-select" id="countrySelect">
+                <div class="select-trigger">
+                    <div class="select-trigger-content">
+                        <span class="selected-flag">🌎</span>
+                        <span class="selected-label">Selecciona un país</span>
+                    </div>
+                    <span class="select-arrow">▼</span>
+                </div>
+                <div class="select-dropdown">
+                    <div class="select-search">
+                        <input type="text" placeholder="Buscar país..." id="countrySearch">
+                    </div>
+                    <div class="select-options" id="countryOptions"></div>
+                </div>
+            </div>
+
+            <div class="count-control">
+                <input type="number" id="count" min="1" max="10" value="3">
+                <span style="font-family: 'Space Mono', monospace; font-size: 0.8rem; color: var(--earth);">direcciones</span>
+            </div>
+
+            <button id="generate" class="primary">
+                <span>Generar</span>
+            </button>
+
+            <button id="copyAll">
+                <span>Copiar Todas</span>
+            </button>
+        </div>
+
+        <div class="grid" id="addressGrid"></div>
+    </div>
+
+    <script>
+        // Massive address database
+        const addressData = {
+            // AMÉRICA
+            ar: { name: 'Argentina', flag: '🇦🇷', region: 'América', streets: ['Av. Corrientes', 'Av. Santa Fe', 'Calle Florida', 'Av. 9 de Julio', 'Av. Callao', 'Av. Rivadavia'], cities: ['Buenos Aires', 'Córdoba', 'Rosario', 'Mendoza', 'La Plata', 'San Miguel de Tucumán'], states: ['Buenos Aires', 'Córdoba', 'Santa Fe', 'Mendoza', 'Buenos Aires', 'Tucumán'], postalPrefix: [1000, 5000, 2000, 5500, 1900, 4000] },
+            br: { name: 'Brasil', flag: '🇧🇷', region: 'América', streets: ['Av. Paulista', 'Rua Augusta', 'Av. Faria Lima', 'Rua Oscar Freire', 'Av. Brigadeiro'], cities: ['São Paulo', 'Rio de Janeiro', 'Brasília', 'Salvador', 'Fortaleza'], states: ['São Paulo', 'Rio de Janeiro', 'Distrito Federal', 'Bahia', 'Ceará'], postalPrefix: [01310, 20000, 70000, 40000, 60000] },
+            ca: { name: 'Canadá', flag: '🇨🇦', region: 'América', streets: ['Yonge Street', 'Queen Street', 'Robson Street', 'Sainte-Catherine', 'King Street'], cities: ['Toronto', 'Vancouver', 'Montreal', 'Calgary', 'Ottawa'], states: ['Ontario', 'British Columbia', 'Quebec', 'Alberta', 'Ontario'], postalPrefix: ['M5H', 'V6B', 'H3B', 'T2P', 'K1A'] },
+            cl: { name: 'Chile', flag: '🇨🇱', region: 'América', streets: ['Av. Libertador', 'Av. Providencia', 'Av. Apoquindo', 'Calle Huérfanos', 'Av. Vicuña Mackenna'], cities: ['Santiago', 'Valparaíso', 'Concepción', 'La Serena', 'Antofagasta'], states: ['Región Metropolitana', 'Valparaíso', 'Biobío', 'Coquimbo', 'Antofagasta'], postalPrefix: [833, 234, 407, 170, 124] },
+            co: { name: 'Colombia', flag: '🇨🇴', region: 'América', streets: ['Carrera 7', 'Calle 100', 'Av. Caracas', 'Calle 72', 'Carrera 15'], cities: ['Bogotá', 'Medellín', 'Cali', 'Barranquilla', 'Cartagena'], states: ['Cundinamarca', 'Antioquia', 'Valle del Cauca', 'Atlántico', 'Bolívar'], postalPrefix: [110, 050, 760, 080, 130] },
+            cr: { name: 'Costa Rica', flag: '🇨🇷', region: 'América', streets: ['Paseo Colón', 'Av. Central', 'Calle Blancos', 'Av. Segunda'], cities: ['San José', 'Alajuela', 'Cartago', 'Heredia'], states: ['San José', 'Alajuela', 'Cartago', 'Heredia'], postalPrefix: [10101, 20101, 30101, 40101] },
+            ec: { name: 'Ecuador', flag: '🇪🇨', region: 'América', streets: ['Av. Amazonas', 'Av. 6 de Diciembre', 'Av. González Suárez', 'Av. 10 de Agosto'], cities: ['Quito', 'Guayaquil', 'Cuenca'], states: ['Pichincha', 'Guayas', 'Azuay'], postalPrefix: [170143, 090150, 010150] },
+            us: { name: 'Estados Unidos', flag: '🇺🇸', region: 'América', streets: ['Main Street', 'Oak Avenue', 'Maple Drive', 'Park Boulevard', 'Washington Street', 'Lincoln Avenue'], cities: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Miami', 'Seattle', 'Denver', 'Boston', 'Atlanta', 'San Francisco', 'Dallas', 'Philadelphia', 'Las Vegas', 'Portland', 'San Diego', 'Austin', 'Nashville', 'Ashburn'], states: ['NY', 'CA', 'IL', 'TX', 'AZ', 'FL', 'WA', 'CO', 'MA', 'GA', 'CA', 'TX', 'PA', 'NV', 'OR', 'CA', 'TX', 'TN', 'VA'], postalPrefix: [100, 900, 606, 770, 850, 331, 981, 802, 021, 303, 941, 752, 191, 891, 972, 920, 787, 372, 201] },
+            gt: { name: 'Guatemala', flag: '🇬🇹', region: 'América', streets: ['Av. Reforma', '6a Avenida', '7a Avenida', 'Calzada Roosevelt'], cities: ['Ciudad de Guatemala', 'Antigua', 'Quetzaltenango'], states: ['Guatemala', 'Sacatepéquez', 'Quetzaltenango'], postalPrefix: [01001, 03001, 09001] },
+            hn: { name: 'Honduras', flag: '🇭🇳', region: 'América', streets: ['Blvd. Morazán', 'Av. República de Chile', 'Av. Juan Pablo II'], cities: ['Tegucigalpa', 'San Pedro Sula'], states: ['Francisco Morazán', 'Cortés'], postalPrefix: [11101, 21101] },
+            mx: { name: 'México', flag: '🇲🇽', region: 'América', streets: ['Av. Insurgentes', 'Calle Juárez', 'Paseo de la Reforma', 'Av. Revolución', 'Calle Madero'], cities: ['Ciudad de México', 'Guadalajara', 'Monterrey', 'Puebla', 'Querétaro', 'Tijuana'], states: ['CDMX', 'Jalisco', 'Nuevo León', 'Puebla', 'Querétaro', 'Baja California'], postalPrefix: [6, 44, 64, 72, 76, 22] },
+            pa: { name: 'Panamá', flag: '🇵🇦', region: 'América', streets: ['Vía España', 'Av. Balboa', 'Calle 50', 'Tumba Muerto'], cities: ['Ciudad de Panamá', 'Colón'], states: ['Panamá', 'Colón'], postalPrefix: [0801, 0201] },
+            pe: { name: 'Perú', flag: '🇵🇪', region: 'América', streets: ['Av. Javier Prado', 'Av. Arequipa', 'Av. La Marina', 'Jr. de la Unión'], cities: ['Lima', 'Arequipa', 'Trujillo', 'Cusco'], states: ['Lima', 'Arequipa', 'La Libertad', 'Cusco'], postalPrefix: [15001, 04001, 13001, 08000] },
+            pr: { name: 'Puerto Rico', flag: '🇵🇷', region: 'América', streets: ['Av. Ponce de León', 'Av. Roosevelt', 'Calle San Francisco'], cities: ['San Juan', 'Ponce', 'Mayagüez'], states: ['San Juan', 'Ponce', 'Mayagüez'], postalPrefix: [901, 717, 680] },
+            do: { name: 'República Dominicana', flag: '🇩🇴', region: 'América', streets: ['Av. 27 de Febrero', 'Av. Winston Churchill', 'Av. Abraham Lincoln'], cities: ['Santo Domingo', 'Santiago'], states: ['Distrito Nacional', 'Santiago'], postalPrefix: [10201, 51000] },
+            uy: { name: 'Uruguay', flag: '🇺🇾', region: 'América', streets: ['Av. 18 de Julio', 'Rambla República', 'Av. Italia'], cities: ['Montevideo', 'Punta del Este'], states: ['Montevideo', 'Maldonado'], postalPrefix: [11100, 20100] },
+            ve: { name: 'Venezuela', flag: '🇻🇪', region: 'América', streets: ['Av. Libertador', 'Av. Francisco de Miranda', 'Av. Urdaneta'], cities: ['Caracas', 'Maracaibo', 'Valencia'], states: ['Distrito Capital', 'Zulia', 'Carabobo'], postalPrefix: [1010, 4001, 2001] },
+            
+            // EUROPA
+            at: { name: 'Austria', flag: '🇦🇹', region: 'Europa', streets: ['Kärntner Straße', 'Mariahilfer Straße', 'Ringstraße'], cities: ['Viena', 'Salzburgo', 'Innsbruck'], states: ['Wien', 'Salzburg', 'Tirol'], postalPrefix: [1010, 5020, 6020] },
+            be: { name: 'Bélgica', flag: '🇧🇪', region: 'Europa', streets: ['Avenue Louise', 'Rue Neuve', 'Boulevard Anspach'], cities: ['Bruselas', 'Amberes', 'Gante'], states: ['Bruxelles', 'Antwerpen', 'Gent'], postalPrefix: [1000, 2000, 9000] },
+            bg: { name: 'Bulgaria', flag: '🇧🇬', region: 'Europa', streets: ['Vitosha Boulevard', 'Graf Ignatiev Street', 'Tsar Osvoboditel Boulevard'], cities: ['Sofía', 'Plovdiv', 'Varna'], states: ['Sofia', 'Plovdiv', 'Varna'], postalPrefix: [1000, 4000, 9000] },
+            cz: { name: 'Chequia', flag: '🇨🇿', region: 'Europa', streets: ['Václavské náměstí', 'Na Příkopě', 'Pařížská'], cities: ['Praga', 'Brno', 'Ostrava'], states: ['Praha', 'Brno', 'Ostrava'], postalPrefix: [110, 602, 702] },
+            dk: { name: 'Dinamarca', flag: '🇩🇰', region: 'Europa', streets: ['Strøget', 'Nørrebrogade', 'Vesterbrogade'], cities: ['Copenhague', 'Aarhus', 'Odense'], states: ['København', 'Aarhus', 'Odense'], postalPrefix: [1050, 8000, 5000] },
+            sk: { name: 'Eslovaquia', flag: '🇸🇰', region: 'Europa', streets: ['Hviezdoslavovo námestie', 'Obchodná ulica', 'Laurinská'], cities: ['Bratislava', 'Košice'], states: ['Bratislava', 'Košice'], postalPrefix: [811, 040] },
+            si: { name: 'Eslovenia', flag: '🇸🇮', region: 'Europa', streets: ['Slovenska cesta', 'Čopova ulica', 'Trubarjeva cesta'], cities: ['Liubliana', 'Maribor'], states: ['Ljubljana', 'Maribor'], postalPrefix: [1000, 2000] },
+            es: { name: 'España', flag: '🇪🇸', region: 'Europa', streets: ['Gran Vía', 'Paseo de Gracia', 'Calle Alcalá', 'Paseo del Prado', 'Rambla Catalunya'], cities: ['Madrid', 'Barcelona', 'Valencia', 'Sevilla', 'Zaragoza', 'Málaga'], states: ['Madrid', 'Barcelona', 'Valencia', 'Sevilla', 'Zaragoza', 'Málaga'], postalPrefix: [280, 80, 460, 410, 500, 290] },
+            ee: { name: 'Estonia', flag: '🇪🇪', region: 'Europa', streets: ['Narva maantee', 'Pärnu maantee', 'Viru väljak'], cities: ['Tallin', 'Tartu'], states: ['Harju', 'Tartu'], postalPrefix: [10120, 50090] },
+            fi: { name: 'Finlandia', flag: '🇫🇮', region: 'Europa', streets: ['Mannerheimintie', 'Aleksanterinkatu', 'Esplanadi'], cities: ['Helsinki', 'Espoo', 'Tampere'], states: ['Uusimaa', 'Uusimaa', 'Pirkanmaa'], postalPrefix: [100, 2100, 33100] },
+            fr: { name: 'Francia', flag: '🇫🇷', region: 'Europa', streets: ['Avenue des Champs-Élysées', 'Boulevard Haussmann', 'Rue de Rivoli', 'Avenue Montaigne'], cities: ['París', 'Marsella', 'Lyon', 'Toulouse', 'Nice'], states: ['Île-de-France', 'Bouches-du-Rhône', 'Rhône', 'Haute-Garonne', 'Alpes-Maritimes'], postalPrefix: [750, 130, 690, 310, 60] },
+            gr: { name: 'Grecia', flag: '🇬🇷', region: 'Europa', streets: ['Ermou Street', 'Stadiou Street', 'Panepistimiou Avenue'], cities: ['Atenas', 'Salónica', 'Patras'], states: ['Attica', 'Central Macedonia', 'West Greece'], postalPrefix: [105, 546, 262] },
+            hu: { name: 'Hungría', flag: '🇭🇺', region: 'Europa', streets: ['Andrássy út', 'Váci utca', 'Rákóczi út'], cities: ['Budapest', 'Debrecen', 'Szeged'], states: ['Budapest', 'Hajdú-Bihar', 'Csongrád'], postalPrefix: [1051, 4024, 6720] },
+            ie: { name: 'Irlanda', flag: '🇮🇪', region: 'Europa', streets: ["O'Connell Street", 'Grafton Street', 'Henry Street'], cities: ['Dublín', 'Cork', 'Galway'], states: ['Dublin', 'Cork', 'Galway'], postalPrefix: ['D01', 'T12', 'H91'] },
+            is: { name: 'Islandia', flag: '🇮🇸', region: 'Europa', streets: ['Laugavegur', 'Skólavörðustígur', 'Hverfisgata'], cities: ['Reikiavik', 'Kópavogur'], states: ['Reykjavík', 'Kópavogur'], postalPrefix: [101, 200] },
+            it: { name: 'Italia', flag: '🇮🇹', region: 'Europa', streets: ['Via del Corso', 'Via Tornabuoni', 'Via Montenapoleone', 'Via Condotti'], cities: ['Roma', 'Milán', 'Nápoles', 'Turín', 'Florencia', 'Venecia'], states: ['Lazio', 'Lombardia', 'Campania', 'Piemonte', 'Toscana', 'Veneto'], postalPrefix: [185, 201, 801, 101, 501, 301] },
+            lv: { name: 'Letonia', flag: '🇱🇻', region: 'Europa', streets: ['Brīvības iela', 'Elizabetes iela', 'Kr. Barona iela'], cities: ['Riga', 'Daugavpils'], states: ['Rīga', 'Daugavpils'], postalPrefix: [1010, 5401] },
+            lt: { name: 'Lituania', flag: '🇱🇹', region: 'Europa', streets: ['Gedimino prospektas', 'Pilies gatvė', 'Vilniaus gatvė'], cities: ['Vilna', 'Kaunas'], states: ['Vilnius', 'Kaunas'], postalPrefix: [1010, 44001] },
+            lu: { name: 'Luxemburgo', flag: '🇱🇺', region: 'Europa', streets: ['Avenue de la Liberté', 'Grand Rue', 'Avenue Monterey'], cities: ['Luxemburgo', 'Esch-sur-Alzette'], states: ['Luxembourg', 'Esch-sur-Alzette'], postalPrefix: [1000, 4000] },
+            no: { name: 'Noruega', flag: '🇳🇴', region: 'Europa', streets: ['Karl Johans gate', 'Grensen', 'Storgata'], cities: ['Oslo', 'Bergen', 'Trondheim'], states: ['Oslo', 'Vestland', 'Trøndelag'], postalPrefix: [150, 5003, 7010] },
+            nl: { name: 'Países Bajos', flag: '🇳🇱', region: 'Europa', streets: ['Kalverstraat', 'Leidsestraat', 'Damrak'], cities: ['Ámsterdam', 'Róterdam', 'La Haya'], states: ['Noord-Holland', 'Zuid-Holland', 'Zuid-Holland'], postalPrefix: [1012, 3011, 2511] },
+            pl: { name: 'Polonia', flag: '🇵🇱', region: 'Europa', streets: ['Nowy Świat', 'Krakowskie Przedmieście', 'Marszałkowska'], cities: ['Varsovia', 'Cracovia', 'Wroclaw'], states: ['Mazowieckie', 'Małopolskie', 'Dolnośląskie'], postalPrefix: [0, 30, 50] },
+            pt: { name: 'Portugal', flag: '🇵🇹', region: 'Europa', streets: ['Avenida da Liberdade', 'Rua Augusta', 'Rua de Santa Catarina'], cities: ['Lisboa', 'Oporto', 'Braga'], states: ['Lisboa', 'Porto', 'Braga'], postalPrefix: [1050, 4000, 4700] },
+            uk: { name: 'Reino Unido', flag: '🇬🇧', region: 'Europa', streets: ['Oxford Street', 'Regent Street', 'Piccadilly', 'Bond Street'], cities: ['Londres', 'Manchester', 'Birmingham', 'Glasgow', 'Liverpool', 'Edimburgo'], states: ['Greater London', 'Greater Manchester', 'West Midlands', 'Glasgow', 'Merseyside', 'Edinburgh'], postalPrefix: ['W1', 'M1', 'B1', 'G1', 'L1', 'EH1'] },
+            ro: { name: 'Rumania', flag: '🇷🇴', region: 'Europa', streets: ['Calea Victoriei', 'Strada Lipscani', 'Bulevardul Unirii'], cities: ['Bucarest', 'Cluj-Napoca', 'Timișoara'], states: ['București', 'Cluj', 'Timiș'], postalPrefix: [10101, 400001, 300001] },
+            se: { name: 'Suecia', flag: '🇸🇪', region: 'Europa', streets: ['Drottninggatan', 'Sveavägen', 'Hamngatan'], cities: ['Estocolmo', 'Gotemburgo', 'Malmö'], states: ['Stockholm', 'Västra Götaland', 'Skåne'], postalPrefix: [111, 411, 211] },
+            ch: { name: 'Suiza', flag: '🇨🇭', region: 'Europa', streets: ['Bahnhofstrasse', 'Rue du Rhône', 'Paradeplatz'], cities: ['Zúrich', 'Ginebra', 'Basilea', 'Berna', 'Lausana'], states: ['Zürich', 'Genève', 'Basel-Stadt', 'Bern', 'Vaud'], postalPrefix: [8001, 1201, 4001, 3001, 1003] },
+            ua: { name: 'Ucrania', flag: '🇺🇦', region: 'Europa', streets: ['Khreshchatyk Street', 'Andriyivskyy Descent', 'Velyka Vasylkivska Street'], cities: ['Kiev', 'Járkov', 'Odesa'], states: ['Kyiv', 'Kharkiv', 'Odesa'], postalPrefix: [1001, 61001, 65001] },
+            de: { name: 'Alemania', flag: '🇩🇪', region: 'Europa', streets: ['Kurfürstendamm', 'Unter den Linden', 'Königsallee', 'Maximilianstraße'], cities: ['Frankfurt', 'Berlín', 'Múnich', 'Hamburgo', 'Colonia', 'Stuttgart'], states: ['Hessen', 'Berlin', 'Bayern', 'Hamburg', 'Nordrhein-Westfalen', 'Baden-Württemberg'], postalPrefix: [600, 100, 800, 200, 500, 700] },
+            
+            // ASIA Y OCEANÍA
+            au: { name: 'Australia', flag: '🇦🇺', region: 'Asia-Oceanía', streets: ['George Street', 'Collins Street', 'Queen Street', 'King Street'], cities: ['Sídney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaida'], states: ['NSW', 'VIC', 'QLD', 'WA', 'SA'], postalPrefix: [2000, 3000, 4000, 6000, 5000] },
+            kh: { name: 'Camboya', flag: '🇰🇭', region: 'Asia-Oceanía', streets: ['Monivong Boulevard', 'Norodom Boulevard', 'Street 240'], cities: ['Phnom Penh', 'Siem Reap'], states: ['Phnom Penh', 'Siem Reap'], postalPrefix: [12301, 17251] },
+            kr: { name: 'Corea del Sur', flag: '🇰🇷', region: 'Asia-Oceanía', streets: ['Gangnam-daero', 'Teheran-ro', 'Sejong-daero'], cities: ['Seúl', 'Busan', 'Incheon'], states: ['Seoul', 'Busan', 'Incheon'], postalPrefix: [6001, 48001, 21501] },
+            ae: { name: 'Emiratos Árabes', flag: '🇦🇪', region: 'Asia-Oceanía', streets: ['Sheikh Zayed Road', 'Jumeirah Beach Road', 'Al Maktoum Road'], cities: ['Dubái', 'Abu Dhabi'], states: ['Dubai', 'Abu Dhabi'], postalPrefix: [0, 0] },
+            ph: { name: 'Filipinas', flag: '🇵🇭', region: 'Asia-Oceanía', streets: ['EDSA', 'Ayala Avenue', 'Roxas Boulevard'], cities: ['Manila', 'Quezon City', 'Makati'], states: ['Metro Manila', 'Metro Manila', 'Metro Manila'], postalPrefix: [1000, 1100, 1200] },
+            hk: { name: 'Hong Kong', flag: '🇭🇰', region: 'Asia-Oceanía', streets: ['Nathan Road', 'Queen\'s Road', 'Des Voeux Road'], cities: ['Hong Kong'], states: ['Hong Kong Island'], postalPrefix: [0] },
+            in: { name: 'India', flag: '🇮🇳', region: 'Asia-Oceanía', streets: ['MG Road', 'Commercial Street', 'Brigade Road'], cities: ['Bombay', 'Delhi', 'Bangalore'], states: ['Maharashtra', 'Delhi', 'Karnataka'], postalPrefix: [400001, 110001, 560001] },
+            id: { name: 'Indonesia', flag: '🇮🇩', region: 'Asia-Oceanía', streets: ['Jalan Thamrin', 'Jalan Sudirman', 'Jalan Gatot Subroto'], cities: ['Yakarta', 'Surabaya', 'Bandung'], states: ['Jakarta', 'East Java', 'West Java'], postalPrefix: [10110, 60111, 40111] },
+            jp: { name: 'Japón', flag: '🇯🇵', region: 'Asia-Oceanía', streets: ['Shibuya Crossing', 'Ginza Dori', 'Shinjuku Dori', 'Omotesando'], cities: ['Tokio', 'Osaka', 'Kioto', 'Yokohama', 'Nagoya', 'Sapporo'], states: ['Tokyo', 'Osaka', 'Kyoto', 'Kanagawa', 'Aichi', 'Hokkaido'], postalPrefix: [100, 530, 600, 220, 450, 60] },
+            kz: { name: 'Kazajistán', flag: '🇰🇿', region: 'Asia-Oceanía', streets: ['Abay Avenue', 'Dostyk Avenue', 'Furmanov Street'], cities: ['Almaty', 'Nur-Sultan'], states: ['Almaty', 'Nur-Sultan'], postalPrefix: [50000, 10000] },
+            my: { name: 'Malasia', flag: '🇲🇾', region: 'Asia-Oceanía', streets: ['Jalan Bukit Bintang', 'Jalan Ampang', 'Jalan Raja Chulan'], cities: ['Kuala Lumpur', 'Penang', 'Johor Bahru'], states: ['Kuala Lumpur', 'Penang', 'Johor'], postalPrefix: [50000, 10000, 80000] },
+            nz: { name: 'Nueva Zelanda', flag: '🇳🇿', region: 'Asia-Oceanía', streets: ['Queen Street', 'Lambton Quay', 'Cashel Street'], cities: ['Auckland', 'Wellington', 'Christchurch'], states: ['Auckland', 'Wellington', 'Canterbury'], postalPrefix: [1010, 6011, 8011] },
+            pk: { name: 'Pakistán', flag: '🇵🇰', region: 'Asia-Oceanía', streets: ['Mall Road', 'Shahrah-e-Faisal', 'Jinnah Avenue'], cities: ['Karachi', 'Lahore', 'Islamabad'], states: ['Sindh', 'Punjab', 'Islamabad Capital Territory'], postalPrefix: [75500, 54000, 44000] },
+            sg: { name: 'Singapur', flag: '🇸🇬', region: 'Asia-Oceanía', streets: ['Orchard Road', 'Marina Bay', 'Raffles Place'], cities: ['Singapur'], states: ['Central Region'], postalPrefix: [238801] },
+            tw: { name: 'Taiwán', flag: '🇹🇼', region: 'Asia-Oceanía', streets: ['Zhongxiao East Road', 'Xinyi Road', 'Dunhua South Road'], cities: ['Taipéi', 'Kaohsiung', 'Taichung'], states: ['Taipei City', 'Kaohsiung City', 'Taichung City'], postalPrefix: [100, 800, 400] },
+            th: { name: 'Tailandia', flag: '🇹🇭', region: 'Asia-Oceanía', streets: ['Sukhumvit Road', 'Silom Road', 'Ratchadamri Road'], cities: ['Bangkok', 'Chiang Mai', 'Phuket'], states: ['Bangkok', 'Chiang Mai', 'Phuket'], postalPrefix: [10110, 50000, 83000] },
+            vn: { name: 'Vietnam', flag: '🇻🇳', region: 'Asia-Oceanía', streets: ['Nguyen Hue Street', 'Le Loi Boulevard', 'Dong Khoi Street'], cities: ['Ho Chi Minh', 'Hanói', 'Da Nang'], states: ['Ho Chi Minh City', 'Hanoi', 'Da Nang'], postalPrefix: [700000, 100000, 550000] },
+            
+            // ÁFRICA Y MEDIO ORIENTE
+            dz: { name: 'Argelia', flag: '🇩🇿', region: 'África-Medio Oriente', streets: ['Rue Didouche Mourad', 'Boulevard Mohamed V', 'Rue Larbi Ben M\'hidi'], cities: ['Argel', 'Orán'], states: ['Algiers', 'Oran'], postalPrefix: [16000, 31000] },
+            ao: { name: 'Angola', flag: '🇦🇴', region: 'África-Medio Oriente', streets: ['Avenida 4 de Fevereiro', 'Rua Rainha Ginga', 'Marginal de Luanda'], cities: ['Luanda', 'Huambo'], states: ['Luanda', 'Huambo'], postalPrefix: [0, 0] },
+            eg: { name: 'Egipto', flag: '🇪🇬', region: 'África-Medio Oriente', streets: ['Tahrir Square', 'Corniche El Nil', 'Qasr El Nil Street'], cities: ['El Cairo', 'Alejandría', 'Giza'], states: ['Cairo', 'Alexandria', 'Giza'], postalPrefix: [11511, 21500, 12511] },
+            gh: { name: 'Ghana', flag: '🇬🇭', region: 'África-Medio Oriente', streets: ['Oxford Street', 'Independence Avenue', 'Spintex Road'], cities: ['Accra', 'Kumasi'], states: ['Greater Accra', 'Ashanti'], postalPrefix: [0, 0] },
+            il: { name: 'Israel', flag: '🇮🇱', region: 'África-Medio Oriente', streets: ['Rothschild Boulevard', 'Dizengoff Street', 'Ben Yehuda Street'], cities: ['Tel Aviv', 'Jerusalén', 'Haifa'], states: ['Tel Aviv', 'Jerusalem', 'Haifa'], postalPrefix: [61000, 91000, 31000] },
+            ke: { name: 'Kenia', flag: '🇰🇪', region: 'África-Medio Oriente', streets: ['Moi Avenue', 'Kenyatta Avenue', 'Kimathi Street'], cities: ['Nairobi', 'Mombasa'], states: ['Nairobi', 'Mombasa'], postalPrefix: [100, 80100] },
+            ma: { name: 'Marruecos', flag: '🇲🇦', region: 'África-Medio Oriente', streets: ['Avenue Hassan II', 'Boulevard Mohammed V', 'Avenue des FAR'], cities: ['Casablanca', 'Rabat', 'Marrakech'], states: ['Casablanca', 'Rabat', 'Marrakech'], postalPrefix: [20000, 10000, 40000] },
+            ng: { name: 'Nigeria', flag: '🇳🇬', region: 'África-Medio Oriente', streets: ['Victoria Island', 'Ikoyi Road', 'Awolowo Road'], cities: ['Lagos', 'Abuja', 'Kano'], states: ['Lagos', 'Federal Capital Territory', 'Kano'], postalPrefix: [100001, 900001, 700001] },
+            za: { name: 'Sudáfrica', flag: '🇿🇦', region: 'África-Medio Oriente', streets: ['Sandton Drive', 'Long Street', 'Nelson Mandela Boulevard'], cities: ['Johannesburgo', 'Ciudad del Cabo', 'Durban'], states: ['Gauteng', 'Western Cape', 'KwaZulu-Natal'], postalPrefix: [2000, 8001, 4001] },
+            tn: { name: 'Túnez', flag: '🇹🇳', region: 'África-Medio Oriente', streets: ['Avenue Habib Bourguiba', 'Rue de Marseille', 'Avenue de la Liberté'], cities: ['Túnez', 'Sfax'], states: ['Tunis', 'Sfax'], postalPrefix: [1000, 3000] },
+            tr: { name: 'Turquía', flag: '🇹🇷', region: 'África-Medio Oriente', streets: ['İstiklal Caddesi', 'Bağdat Caddesi', 'Nişantaşı'], cities: ['Estambul', 'Ankara', 'Esmirna'], states: ['Istanbul', 'Ankara', 'Izmir'], postalPrefix: [34000, 6000, 35000] }
+        };
+
+        function random(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function randomNumber(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function generateAddress(countryCode) {
+            const country = addressData[countryCode];
+            const cityIndex = Math.floor(Math.random() * country.cities.length);
+            
+            const postalCode = typeof country.postalPrefix[cityIndex] === 'string' 
+                ? country.postalPrefix[cityIndex] + randomNumber(100, 999).toString().substring(0, 3)
+                : country.postalPrefix[cityIndex].toString().padStart(5, '0') + randomNumber(1, 99).toString().padStart(2, '0');
+            
+            return {
+                country: country.name,
+                flag: country.flag,
+                street: random(country.streets),
+                number: randomNumber(1, 9999),
+                city: country.cities[cityIndex],
+                state: country.states[cityIndex],
+                postal: postalCode.substring(0, 8)
+            };
+        }
+
+        function createAddressCard(address, index) {
+            const card = document.createElement('div');
+            card.className = 'address-card';
+            card.style.animationDelay = `${index * 0.1}s`;
+            
+            card.innerHTML = `
+                <div class="country-tag">${address.flag} ${address.country}</div>
+                
+                <div class="address-field">
+                    <div class="label">Calle</div>
+                    <div class="value">${address.street} ${address.number}</div>
+                </div>
+                
+                <div class="address-field">
+                    <div class="label">Ciudad</div>
+                    <div class="value">${address.city}</div>
+                </div>
+                
+                <div class="address-field">
+                    <div class="label">Estado/Región</div>
+                    <div class="value">${address.state}</div>
+                </div>
+                
+                <div class="address-field">
+                    <div class="label">Código Postal</div>
+                    <div class="value">${address.postal}</div>
+                </div>
+                
+                <button class="copy-btn" onclick="copyAddress(this)">
+                    <span>Copiar dirección</span>
+                </button>
+            `;
+            
+            return card;
+        }
+
+        let selectedCountry = 'mx';
+
+        // Custom Select Logic
+        const selectTrigger = document.querySelector('.select-trigger');
+        const selectDropdown = document.querySelector('.select-dropdown');
+        const selectOptions = document.getElementById('countryOptions');
+        const searchInput = document.getElementById('countrySearch');
+        const selectedLabel = document.querySelector('.selected-label');
+        const selectedFlag = document.querySelector('.selected-flag');
+
+        // Populate options
+        const sortedCountries = Object.keys(addressData).sort((a, b) => 
+            addressData[a].name.localeCompare(addressData[b].name)
+        );
+
+        function renderOptions(filter = '') {
+            selectOptions.innerHTML = '';
+            const filtered = sortedCountries.filter(code => 
+                addressData[code].name.toLowerCase().includes(filter.toLowerCase()) ||
+                addressData[code].region.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                selectOptions.innerHTML = '<div class="no-results">No se encontraron países</div>';
+                return;
+            }
+
+            filtered.forEach(code => {
+                const country = addressData[code];
+                const option = document.createElement('div');
+                option.className = 'select-option' + (code === selectedCountry ? ' selected' : '');
+                option.dataset.value = code;
+                
+                option.innerHTML = `
+                    <span class="option-flag">${country.flag}</span>
+                    <div class="option-content">
+                        <span class="option-label">${country.name}</span>
+                        <span class="option-region">${country.region}</span>
+                    </div>
+                `;
+                
+                option.addEventListener('click', () => {
+                    selectedCountry = code;
+                    selectedLabel.textContent = country.name;
+                    selectedFlag.textContent = country.flag;
+                    
+                    document.querySelectorAll('.select-option').forEach(opt => opt.classList.remove('selected'));
+                    option.classList.add('selected');
+                    
+                    selectTrigger.classList.remove('active');
+                    selectDropdown.classList.remove('active');
+                });
+                
+                selectOptions.appendChild(option);
+            });
+        }
+
+        renderOptions();
+
+        selectTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectTrigger.classList.toggle('active');
+            selectDropdown.classList.toggle('active');
+            if (selectDropdown.classList.contains('active')) {
+                searchInput.focus();
+            }
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            renderOptions(e.target.value);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.custom-select')) {
+                selectTrigger.classList.remove('active');
+                selectDropdown.classList.remove('active');
+            }
+        });
+
+        // Address generation
+        function generateAddresses() {
+            const count = parseInt(document.getElementById('count').value) || 3;
+            const grid = document.getElementById('addressGrid');
+            
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < Math.min(count, 10); i++) {
+                const address = generateAddress(selectedCountry);
+                const card = createAddressCard(address, i);
+                grid.appendChild(card);
+            }
+        }
+
+        function copyAddress(button) {
+            const card = button.closest('.address-card');
+            const fields = card.querySelectorAll('.address-field .value');
+            const text = Array.from(fields).map(f => f.textContent).join('\n');
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.innerHTML;
+                button.innerHTML = '<span>✓ Copiado</span>';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function copyAllAddresses() {
+            const cards = document.querySelectorAll('.address-card');
+            let allText = '';
+            
+            cards.forEach((card, index) => {
+                const fields = card.querySelectorAll('.address-field .value');
+                allText += `Dirección ${index + 1}:\n`;
+                allText += Array.from(fields).map(f => f.textContent).join('\n');
+                allText += '\n\n';
+            });
+            
+            navigator.clipboard.writeText(allText).then(() => {
+                const button = document.getElementById('copyAll');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<span>✓ Todas copiadas</span>';
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            });
+        }
+
+        document.getElementById('generate').addEventListener('click', generateAddresses);
+        document.getElementById('copyAll').addEventListener('click', copyAllAddresses);
+
+        // Set initial selected country
+        selectedLabel.textContent = addressData[selectedCountry].name;
+        selectedFlag.textContent = addressData[selectedCountry].flag;
+
+        // Generate initial addresses
+        generateAddresses();
+    </script>
+</body>
+</html>
