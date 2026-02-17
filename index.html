@@ -639,6 +639,21 @@
             color: var(--paper);
         }
 
+        /* Raw API address block */
+        .address-raw {
+            margin-bottom: 1rem;
+            padding: 1rem 1.25rem;
+            background: var(--sand);
+            border-left: 3px solid var(--terracotta);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            color: var(--ink);
+        }
+
+        .address-raw-line {
+            padding: 0.1rem 0;
+        }
+
         .decorative-corner {
             position: fixed;
             width: 300px;
@@ -753,8 +768,9 @@
             dailyDate: localStorage.getItem('randommer_daily_date') || '',
             lastSource: 'local',
             DAILY_LIMIT: 950,
+            supportedCultures: null, // Fetched from API on init
 
-            // Map our country codes to Randommer.io culture codes
+            // Map our country codes to possible Randommer.io culture codes
             cultureMap: {
                 ar: 'es_AR', br: 'pt_BR', ca: 'en_CA', cl: 'es_CL', co: 'es_CO',
                 cr: 'es_CR', ec: 'es_EC', us: 'en_US', gt: 'es_GT', hn: 'es_HN',
@@ -775,7 +791,7 @@
                 tr: 'tr_TR'
             },
 
-            init() {
+            async init() {
                 const today = new Date().toISOString().slice(0, 10);
                 if (this.dailyDate !== today) {
                     this.dailyCount = 0;
@@ -785,8 +801,35 @@
                 }
                 if (this.apiKey) {
                     document.getElementById('apiKeyInput').value = this.apiKey;
+                    this.fetchSupportedCultures();
                 }
                 this.updateStatusUI();
+            },
+
+            async fetchSupportedCultures() {
+                if (!this.apiKey) return;
+                try {
+                    const resp = await fetch('https://randommer.io/api/Misc/Cultures', {
+                        headers: { 'X-Api-Key': this.apiKey }
+                    });
+                    if (resp.ok) {
+                        const cultures = await resp.json();
+                        this.supportedCultures = new Set(
+                            cultures.map(c => typeof c === 'string' ? c : c.code || c.Code || '')
+                        );
+                        console.log('Randommer supported cultures:', [...this.supportedCultures]);
+                    }
+                } catch (e) {
+                    console.warn('Could not fetch supported cultures:', e.message);
+                }
+            },
+
+            isCultureSupported(countryCode) {
+                const culture = this.cultureMap[countryCode];
+                if (!culture) return false;
+                // If we haven't fetched cultures yet, optimistically try
+                if (!this.supportedCultures) return true;
+                return this.supportedCultures.has(culture);
             },
 
             updateStatusUI() {
@@ -800,137 +843,11 @@
                 }
             },
 
-            // Known country names the API might return (for detection)
-            countryNames: new Set([
-                'United States', 'USA', 'US', 'Mexico', 'México', 'Canada', 'Canadá',
-                'Argentina', 'Brasil', 'Brazil', 'Chile', 'Colombia', 'Costa Rica',
-                'Ecuador', 'Guatemala', 'Honduras', 'Panamá', 'Panama', 'Perú', 'Peru',
-                'Puerto Rico', 'República Dominicana', 'Dominican Republic',
-                'Uruguay', 'Venezuela',
-                'Germany', 'Deutschland', 'Alemania', 'France', 'Francia',
-                'Italy', 'Italia', 'Spain', 'España', 'United Kingdom', 'UK',
-                'Great Britain', 'Portugal', 'Netherlands', 'Nederland',
-                'Belgium', 'Belgique', 'België', 'Austria', 'Österreich',
-                'Switzerland', 'Schweiz', 'Suisse', 'Svizzera',
-                'Sweden', 'Sverige', 'Norway', 'Norge', 'Denmark', 'Danmark',
-                'Finland', 'Suomi', 'Poland', 'Polska', 'Czech Republic', 'Česko',
-                'Slovakia', 'Slovensko', 'Slovenia', 'Slovenija',
-                'Hungary', 'Magyarország', 'Romania', 'România',
-                'Bulgaria', 'България', 'Greece', 'Ελλάδα', 'Ellada',
-                'Ireland', 'Éire', 'Iceland', 'Ísland',
-                'Estonia', 'Eesti', 'Latvia', 'Latvija', 'Lithuania', 'Lietuva',
-                'Luxembourg', 'Luxemburg', 'Ukraine', 'Україна',
-                'Australia', 'New Zealand', 'Japan', '日本', 'South Korea', '한국',
-                'China', '中国', 'Taiwan', '台灣', 'Hong Kong', '香港',
-                'India', 'Indonesia', 'Malaysia', 'Philippines', 'Singapore',
-                'Thailand', 'ประเทศไทย', 'Vietnam', 'Việt Nam', 'Cambodia',
-                'Kazakhstan', 'Қазақстан', 'Pakistan',
-                'United Arab Emirates', 'UAE',
-                'Egypt', 'مصر', 'Algeria', 'الجزائر', 'Morocco', 'المغرب',
-                'Tunisia', 'تونس', 'Nigeria', 'Ghana', 'Kenya', 'South Africa',
-                'Angola', 'Israel', 'ישראל', 'Turkey', 'Türkiye', 'Turkiye'
-            ]),
-
-            parseApiAddress(raw, countryCode) {
-                const country = addressData[countryCode];
-
-                // If API returns a structured object
-                if (typeof raw === 'object' && raw !== null) {
-                    return {
-                        country: country.name,
-                        flag: country.flag,
-                        street: raw.address || raw.street || raw.streetAddress || '',
-                        number: '',
-                        city: raw.city || '',
-                        state: raw.state || raw.region || '',
-                        postal: raw.zipCode || raw.zip || raw.postalCode || raw.postcode || '',
-                        source: 'api'
-                    };
-                }
-
-                // API returns comma-separated strings. Format varies by culture:
-                // Could be: "Street, Secondary, City, State, Country, Zip"
-                // Or:       "Street, Secondary, City, Country, Zip"
-                // Or:       "Street, City, State, Country, Zip"
-                // Strategy: identify parts from the end using pattern detection
-                const parts = String(raw).split(',').map(p => p.trim());
-
-                let zip = '';
-                let state = '';
-                let city = '';
-                let street = '';
-                let countryIdx = -1;
-                let zipIdx = -1;
-
-                // Find the country name part (scan from end)
-                for (let i = parts.length - 1; i >= 0; i--) {
-                    if (this.countryNames.has(parts[i])) {
-                        countryIdx = i;
-                        break;
-                    }
-                }
-
-                // Find zip code (digits, possibly with dash/space)
-                // Scan from end, skip country if found
-                for (let i = parts.length - 1; i >= 0; i--) {
-                    if (i === countryIdx) continue;
-                    if (/\d{3,}/.test(parts[i]) && !/\d+\s+\w+\s+\w+/.test(parts[i])) {
-                        // Looks like a zip/postal code (has 3+ digits, not a street address)
-                        zipIdx = i;
-                        zip = parts[i];
-                        break;
-                    }
-                }
-
-                // Now identify city and state from remaining parts
-                // Parts order: [street parts...] [city] [state?] [country?] [zip?]
-                // Remove known indices and what's left between street and the identifiers
-                const usedIndices = new Set();
-                if (countryIdx >= 0) usedIndices.add(countryIdx);
-                if (zipIdx >= 0) usedIndices.add(zipIdx);
-
-                // Remaining parts between street and the used indices
-                const firstUsed = Math.min(
-                    countryIdx >= 0 ? countryIdx : parts.length,
-                    zipIdx >= 0 ? zipIdx : parts.length
-                );
-
-                // Parts before the first identified field are: street + maybe city + maybe state
-                const addressParts = [];
-                for (let i = 0; i < parts.length; i++) {
-                    if (!usedIndices.has(i)) addressParts.push({ idx: i, val: parts[i] });
-                }
-
-                if (addressParts.length >= 3) {
-                    // Last unused = state, second-to-last unused = city, rest = street
-                    state = addressParts[addressParts.length - 1].val;
-                    city = addressParts[addressParts.length - 2].val;
-                    street = addressParts.slice(0, addressParts.length - 2).map(p => p.val).join(', ');
-                } else if (addressParts.length === 2) {
-                    city = addressParts[addressParts.length - 1].val;
-                    street = addressParts[0].val;
-                } else if (addressParts.length === 1) {
-                    street = addressParts[0].val;
-                }
-
-                return {
-                    country: country.name,
-                    flag: country.flag,
-                    street: street,
-                    number: '',
-                    city: city,
-                    state: state,
-                    postal: zip,
-                    source: 'api'
-                };
-            },
-
             async fetchFromAPI(countryCode, quantity) {
-                if (!this.apiKey || this.dailyCount >= this.DAILY_LIMIT) {
-                    return null;
-                }
+                if (!this.apiKey || this.dailyCount >= this.DAILY_LIMIT) return null;
+                if (!this.isCultureSupported(countryCode)) return null;
 
-                const culture = this.cultureMap[countryCode] || 'en';
+                const culture = this.cultureMap[countryCode];
 
                 try {
                     const response = await fetch(
@@ -945,7 +862,11 @@
                         return null;
                     }
 
-                    if (!response.ok) return null;
+                    if (!response.ok) {
+                        // Mark this culture as unsupported so we don't retry
+                        if (this.supportedCultures) this.supportedCultures.delete(culture);
+                        return null;
+                    }
 
                     const addresses = await response.json();
                     this.dailyCount += 1;
@@ -953,7 +874,13 @@
                     this.updateStatusUI();
 
                     if (Array.isArray(addresses) && addresses.length > 0) {
-                        return addresses.map(raw => this.parseApiAddress(raw, countryCode));
+                        const country = addressData[countryCode];
+                        return addresses.map(raw => ({
+                            country: country.name,
+                            flag: country.flag,
+                            raw: typeof raw === 'object' ? JSON.stringify(raw) : String(raw),
+                            source: 'api'
+                        }));
                     }
                     return null;
                 } catch (err) {
@@ -982,14 +909,12 @@
             },
 
             async getAddresses(countryCode, quantity) {
-                // Try API first
                 const apiResult = await this.fetchFromAPI(countryCode, quantity);
                 if (apiResult) {
                     this.lastSource = 'api';
                     return apiResult;
                 }
 
-                // Fallback to procedural
                 this.lastSource = 'local';
                 const results = [];
                 for (let i = 0; i < quantity; i++) {
@@ -1101,33 +1026,46 @@
                 ? '<span class="source-tag api">API</span>'
                 : '<span class="source-tag local">LOCAL</span>';
 
-            const streetDisplay = address.number
-                ? address.street + ' ' + address.number
-                : address.street;
+            let fieldsHTML = '';
+
+            if (address.raw) {
+                // API address: show as a single formatted block (no fragile parsing)
+                const lines = address.raw.split(',').map(s => s.trim()).filter(Boolean);
+                fieldsHTML = `
+                    <div class="address-raw">
+                        ${lines.map(line => `<div class="address-raw-line">${line}</div>`).join('')}
+                    </div>`;
+            } else {
+                // LOCAL address: structured fields
+                const streetDisplay = address.number
+                    ? address.street + ' ' + address.number
+                    : address.street;
+
+                fieldsHTML = `
+                    <div class="address-field">
+                        <div class="label">Calle</div>
+                        <div class="value">${streetDisplay}</div>
+                    </div>
+
+                    ${address.city ? `<div class="address-field">
+                        <div class="label">Ciudad</div>
+                        <div class="value">${address.city}</div>
+                    </div>` : ''}
+
+                    ${address.state ? `<div class="address-field">
+                        <div class="label">Estado/Región</div>
+                        <div class="value">${address.state}</div>
+                    </div>` : ''}
+
+                    ${address.postal ? `<div class="address-field">
+                        <div class="label">Código Postal</div>
+                        <div class="value">${address.postal}</div>
+                    </div>` : ''}`;
+            }
 
             card.innerHTML = `
                 <div class="country-tag">${address.flag} ${address.country} ${sourceTag}</div>
-
-                <div class="address-field">
-                    <div class="label">Calle</div>
-                    <div class="value">${streetDisplay}</div>
-                </div>
-
-                ${address.city ? `<div class="address-field">
-                    <div class="label">Ciudad</div>
-                    <div class="value">${address.city}</div>
-                </div>` : ''}
-
-                ${address.state ? `<div class="address-field">
-                    <div class="label">Estado/Región</div>
-                    <div class="value">${address.state}</div>
-                </div>` : ''}
-
-                ${address.postal ? `<div class="address-field">
-                    <div class="label">Código Postal</div>
-                    <div class="value">${address.postal}</div>
-                </div>` : ''}
-
+                ${fieldsHTML}
                 <button class="copy-btn" onclick="copyAddress(this)">
                     <span>Copiar dirección</span>
                 </button>
@@ -1232,16 +1170,25 @@
             }
         }
 
+        function getCardText(card) {
+            const rawBlock = card.querySelector('.address-raw');
+            if (rawBlock) {
+                return Array.from(rawBlock.querySelectorAll('.address-raw-line'))
+                    .map(l => l.textContent).join('\n');
+            }
+            const fields = card.querySelectorAll('.address-field .value');
+            return Array.from(fields).map(f => f.textContent).join('\n');
+        }
+
         function copyAddress(button) {
             const card = button.closest('.address-card');
-            const fields = card.querySelectorAll('.address-field .value');
-            const text = Array.from(fields).map(f => f.textContent).join('\n');
-            
+            const text = getCardText(card);
+
             navigator.clipboard.writeText(text).then(() => {
                 const originalText = button.innerHTML;
                 button.innerHTML = '<span>✓ Copiado</span>';
                 button.classList.add('copied');
-                
+
                 setTimeout(() => {
                     button.innerHTML = originalText;
                     button.classList.remove('copied');
@@ -1252,19 +1199,18 @@
         function copyAllAddresses() {
             const cards = document.querySelectorAll('.address-card');
             let allText = '';
-            
+
             cards.forEach((card, index) => {
-                const fields = card.querySelectorAll('.address-field .value');
                 allText += `Dirección ${index + 1}:\n`;
-                allText += Array.from(fields).map(f => f.textContent).join('\n');
+                allText += getCardText(card);
                 allText += '\n\n';
             });
-            
+
             navigator.clipboard.writeText(allText).then(() => {
                 const button = document.getElementById('copyAll');
                 const originalText = button.innerHTML;
                 button.innerHTML = '<span>✓ Todas copiadas</span>';
-                
+
                 setTimeout(() => {
                     button.innerHTML = originalText;
                 }, 2000);
@@ -1288,8 +1234,12 @@
             AddressService.apiKey = key;
             if (key) {
                 localStorage.setItem('randommer_api_key', key);
+                // Fetch supported cultures with the new key
+                AddressService.supportedCultures = null;
+                AddressService.fetchSupportedCultures();
             } else {
                 localStorage.removeItem('randommer_api_key');
+                AddressService.supportedCultures = null;
             }
             AddressService.updateStatusUI();
 
